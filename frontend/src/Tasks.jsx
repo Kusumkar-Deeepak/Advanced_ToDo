@@ -19,7 +19,7 @@ function Tasks() {
 
   // Fetch tasks from backend based on logged-in user
   const fetchTasks = async (userEmail) => {
-    if (!userEmail) return; // Ensure email is provided before making a request
+    if (!userEmail) return;
 
     try {
       setLoading(true);
@@ -31,7 +31,7 @@ function Tasks() {
       if (response.data && response.data.todos) {
         setTasks(response.data.todos);
       } else {
-        setTasks([]); // Ensure an empty task list instead of throwing an error
+        setTasks([]);
       }
     } catch (error) {
       console.error(
@@ -40,7 +40,7 @@ function Tasks() {
       );
 
       if (error.response && error.response.status === 404) {
-        setTasks([]); // Handle empty response properly
+        setTasks([]);
       } else {
         toast.error(
           "⚠️ Error fetching tasks: " +
@@ -102,7 +102,7 @@ function Tasks() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 text-white p-5">
+    <div className="min-h-screen flex flex-col justify-between bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 text-white p-5">
       {/* Title & Logout Section */}
       <div className="flex justify-between items-center w-full max-w-4xl mx-auto py-3">
         <h1 className="text-3xl font-bold">🚀 AI-Powered To-Do App</h1>
@@ -206,9 +206,8 @@ function Tasks() {
         )}
       </div>
 
-      <ToastContainer position="bottom-right" />
-      {/* Footer */}
-      <footer className="w-full text-center py-4 mt-6 bg-gray-800 text-gray-300">
+      {/* Footer (Fixed at Bottom) */}
+      <footer className="w-full text-center py-4 bg-gray-800 text-gray-300 mt-auto">
         <p className="text-sm">
           © {new Date().getFullYear()} AI-Powered To-Do App |
           <a
@@ -219,6 +218,8 @@ function Tasks() {
           </a>
         </p>
       </footer>
+
+      <ToastContainer position="bottom-right" />
     </div>
   );
 }
