@@ -144,7 +144,7 @@ const TaskManager = () => {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-indigo-600 flex items-center">
             <FiList className="mr-2" />
-            TaskMaster AI
+            SmartTask AI
           </h1>
           
           {user ? (
@@ -304,7 +304,7 @@ const TaskManager = () => {
       {/* Footer */}
       <footer className="bg-white border-t mt-12 py-6">
         <div className="container mx-auto px-4 text-center text-sm text-gray-500">
-          <p>© {new Date().getFullYear()} TaskMaster AI. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} SmartTask AI. All rights reserved.</p>
         </div>
       </footer>
     </div>
