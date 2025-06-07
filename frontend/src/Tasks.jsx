@@ -1,227 +1,314 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { FiPlus, FiTrash2, FiEdit, FiCheck, FiLogOut, FiUser, FiList } from 'react-icons/fi';
 
-const API_URL = "https://smarttasker-server.onrender.com/todo-ai";
+const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api/tasks/ai';
 
-function Tasks() {
-  const [prompt, setPrompt] = useState("");
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem("user");
-    return savedUser ? JSON.parse(savedUser) : null;
+const priorityColors = {
+  high: 'bg-red-100 text-red-800',
+  medium: 'bg-yellow-100 text-yellow-800',
+  low: 'bg-green-100 text-green-800'
+};
+
+const statusIcons = {
+  pending: '⏳',
+  completed: '✅'
+};
+
+const TaskManager = () => {
+  const [state, setState] = useState({
+    prompt: '',
+    tasks: [],
+    loading: false,
+    user: JSON.parse(localStorage.getItem('user')) || null,
+    authForm: { name: '', email: '' },
+    activeTab: 'all',
+    isMobileMenuOpen: false
   });
-  const [showPopup, setShowPopup] = useState(user === null);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
 
-  // Fetch tasks from backend based on logged-in user
-  const fetchTasks = async (userEmail) => {
-    if (!userEmail) return;
+  const { prompt, tasks, loading, user, authForm, activeTab, isMobileMenuOpen } = state;
+
+  // Memoized fetch function
+  const fetchTasks = useCallback(async () => {
+    if (!user?.email) return;
 
     try {
-      setLoading(true);
-      const response = await axios.post(API_URL, {
-        prompt: "List all tasks",
-        email: userEmail,
+      setState(prev => ({ ...prev, loading: true }));
+      
+      const { data } = await axios.post(API_URL, {
+        prompt: `List ${activeTab === 'all' ? 'all' : activeTab} tasks`,
+        email: user.email
       });
 
-      if (response.data && response.data.todos) {
-        setTasks(response.data.todos);
-      } else {
-        setTasks([]);
-      }
+      // Make sure to handle the response structure correctly
+      setState(prev => ({
+        ...prev,
+        tasks: data.data?.tasks || data.data || [],
+        loading: false
+      }));
     } catch (error) {
-      console.error(
-        "Error fetching tasks:",
-        error.response?.data || error.message
-      );
-
-      if (error.response && error.response.status === 404) {
-        setTasks([]);
-      } else {
-        toast.error(
-          "⚠️ Error fetching tasks: " +
-            (error.response?.data?.error || error.message)
-        );
-      }
-    } finally {
-      setLoading(false);
+      toast.error(error.response?.data?.message || 'Failed to fetch tasks');
+      setState(prev => ({ ...prev, loading: false }));
     }
+  }, [user?.email, activeTab]);
+
+  // Effect for initial load and tab changes
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setState(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
-  // Handle user login & save credentials to localStorage
-  const handleLogin = () => {
-    if (!name.trim() || !email.trim()) {
-      toast.error("⚠️ Please enter a valid name and email.");
+  const handleAuthChange = (e) => {
+    const { name, value } = e.target;
+    setState(prev => ({
+      ...prev,
+      authForm: {
+        ...prev.authForm,
+        [name]: value
+      }
+    }));
+  };
+
+  const handleLogin = async () => {
+    if (!authForm.name.trim() || !authForm.email.trim()) {
+      toast.error('Please enter valid credentials');
       return;
     }
-    const userData = { name, email };
-    localStorage.setItem("user", JSON.stringify(userData));
-    setUser(userData);
-    setShowPopup(false);
-    fetchTasks(email);
+
+    const userData = {
+      name: authForm.name.trim(),
+      email: authForm.email.trim().toLowerCase()
+    };
+
+    localStorage.setItem('user', JSON.stringify(userData));
+    setState(prev => ({
+      ...prev,
+      user: userData,
+      authForm: { name: '', email: '' }
+    }));
+    toast.success(`Welcome, ${userData.name}!`);
   };
 
-  // Logout and clear stored user data
   const handleLogout = () => {
-    localStorage.removeItem("user");
-    setUser(null);
-    setShowPopup(true);
-    setTasks([]);
+    localStorage.removeItem('user');
+    setState(prev => ({
+      ...prev,
+      user: null,
+      tasks: []
+    }));
+    toast.info('Logged out successfully');
   };
 
-  // Fetch tasks when the user logs in
-  useEffect(() => {
-    if (user) {
-      fetchTasks(user.email);
-    }
-  }, [user]);
-
-  // Handle AI Prompt Submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || !user?.email) return;
 
     try {
-      setLoading(true);
-      const response = await axios.post(API_URL, { prompt, email: user.email });
-      toast.success(response.data.message);
-      setPrompt("");
-      fetchTasks(user.email);
+      setState(prev => ({ ...prev, loading: true }));
+      
+      const { data } = await axios.post(API_URL, {
+        prompt: prompt.trim(),
+        email: user.email
+      });
+
+      toast.success(data.message || 'Action completed');
+      setState(prev => ({ ...prev, prompt: '' }));
+      fetchTasks();
     } catch (error) {
-      toast.error(
-        "❌ AI Processing failed: " +
-          (error.response?.data?.error || error.message)
-      );
+      toast.error(error.response?.data?.message || 'AI processing failed');
     } finally {
-      setLoading(false);
+      setState(prev => ({ ...prev, loading: false }));
     }
   };
 
+  const filteredTasks = tasks.filter(task => {
+    if (activeTab === 'all') return true;
+    if (activeTab === 'completed') return task.status === 'completed';
+    if (activeTab === 'pending') return task.status === 'pending';
+    return task.priority === activeTab;
+  });
+
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 text-white p-5">
-      {/* Title & Logout Section */}
-      <div className="flex justify-between items-center w-full max-w-4xl mx-auto py-3">
-        <h1 className="text-3xl font-bold">🚀 AI-Powered To-Do App</h1>
-        {user && (
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white font-semibold transition duration-300"
-          >
-            Logout
-          </button>
-        )}
-      </div>
-
-      {/* User Authentication Popup */}
-      {showPopup && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center">
-          <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-96 text-center">
-            <h2 className="text-lg font-bold mb-3">Enter Your Details</h2>
-            <input
-              type="text"
-              placeholder="Enter your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full p-3 border border-gray-600 bg-gray-700 rounded mb-3 focus:ring focus:ring-blue-400"
-            />
-            <input
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 border border-gray-600 bg-gray-700 rounded mb-3 focus:ring focus:ring-blue-400"
-            />
-            <button
-              onClick={handleLogin}
-              className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-semibold transition duration-300"
-            >
-              Submit
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* AI Prompt Form */}
-      <form
-        onSubmit={handleSubmit}
-        className="flex gap-3 w-full max-w-md mx-auto mt-6"
-      >
-        <input
-          type="text"
-          placeholder="Enter AI prompt (e.g., 'Create a task for...')"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          className="w-full p-3 border border-gray-600 bg-gray-700 rounded-lg focus:ring focus:ring-blue-400"
-        />
-        <button
-          type="submit"
-          className="px-5 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-semibold transition duration-300"
-          disabled={loading}
-        >
-          {loading ? "Processing..." : "Submit"}
-        </button>
-      </form>
-
-      {/* Task List */}
-      <div className="mt-6 w-full max-w-md mx-auto">
-        <h2 className="text-lg font-semibold mb-3">📝 Your Tasks</h2>
-        {loading ? (
-          <p className="text-gray-400">Loading tasks...</p>
-        ) : tasks.length > 0 ? (
-          <ul className="space-y-3">
-            {tasks.map((task, index) => (
-              <li
-                key={index}
-                className={`bg-gray-800 p-4 rounded-lg shadow-md transition duration-300 ${
-                  task.status === "completed" ? "opacity-60 line-through" : ""
-                }`}
+    <div className="min-h-screen bg-gray-50 text-gray-900">
+      {/* Header */}
+      <header className="bg-white shadow-sm">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-indigo-600 flex items-center">
+            <FiList className="mr-2" />
+            TaskMaster AI
+          </h1>
+          
+          {user ? (
+            <div className="flex items-center space-x-4">
+              <span className="hidden md:inline text-sm font-medium">
+                Welcome, {user.name}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="flex items-center space-x-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition"
               >
-                <span className="text-lg font-semibold">{task.task}</span>
-                <div className="text-sm text-gray-400 mt-1">
-                  <span className="bg-gray-700 px-2 py-1 rounded-lg">
-                    {task.priority.toUpperCase()} Priority
-                  </span>{" "}
-                  -{" "}
-                  <span
-                    className={`${
-                      task.status === "completed"
-                        ? "text-green-400"
-                        : "text-yellow-400"
+                <FiLogOut size={16} />
+                <span>Logout</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-8">
+        {!user ? (
+          <div className="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
+            <h2 className="text-xl font-semibold mb-4 text-center">Sign In</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={authForm.name}
+                  onChange={handleAuthChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="John Doe"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={authForm.email}
+                  onChange={handleAuthChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="john@example.com"
+                />
+              </div>
+              <button
+                onClick={handleLogin}
+                className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-200 flex items-center justify-center"
+              >
+                <FiUser className="mr-2" />
+                Continue
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* AI Prompt Form */}
+            <div className="max-w-3xl mx-auto mb-8">
+              <form onSubmit={handleSubmit} className="flex flex-col space-y-3">
+                <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3">
+                  <input
+                    type="text"
+                    name="prompt"
+                    value={prompt}
+                    onChange={handleInputChange}
+                    placeholder="Tell me what to do (e.g., 'Create a high priority task for project deadline')"
+                    className="flex-grow px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    disabled={loading}
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading || !prompt.trim()}
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-200 flex items-center justify-center disabled:opacity-50"
+                  >
+                    <FiPlus className="mr-2" />
+                    {loading ? 'Processing...' : 'Add Task'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Examples: "Complete the report by Friday", "Change 'meeting' to 'team sync'", 
+                  "Show me all high priority tasks"
+                </p>
+              </form>
+            </div>
+
+            {/* Task Filters */}
+            <div className="max-w-3xl mx-auto mb-6 overflow-x-auto">
+              <div className="flex space-x-2 pb-2">
+                {['all', 'pending', 'completed', 'high', 'medium', 'low'].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setState(prev => ({ ...prev, activeTab: tab }))}
+                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                      activeTab === tab
+                        ? 'bg-indigo-100 text-indigo-700'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
-                    {task.status === "completed"
-                      ? "✅ Completed"
-                      : "⏳ Not Completed"}
-                  </span>
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Task List */}
+            <div className="max-w-3xl mx-auto">
+              {loading && !tasks.length ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
                 </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-gray-400 text-center">No tasks available.</p>
+              ) : filteredTasks.length > 0 ? (
+                <ul className="space-y-3">
+                  {filteredTasks.map((task) => (
+                    <li
+                      key={task._id}
+                      className="bg-white p-4 rounded-lg shadow hover:shadow-md transition"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className={`font-medium ${task.status === 'completed' ? 'line-through text-gray-500' : ''}`}>
+                            {task.task}
+                          </h3>
+                          <div className="mt-2 flex items-center space-x-3">
+                            <span className={`text-xs px-2 py-1 rounded-full ${priorityColors[task.priority]}`}>
+                              {task.priority} priority
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {new Date(task.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                        
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="bg-white p-8 rounded-lg shadow text-center">
+                  <p className="text-gray-500">
+                    {activeTab === 'all'
+                      ? "You don't have any tasks yet. Add one above!"
+                      : `No ${activeTab} tasks found`}
+                  </p>
+                </div>
+              )}
+            </div>
+          </>
         )}
-      </div>
+      </main>
 
-      {/* Footer (Fixed at Bottom) */}
-      <footer className="w-full text-center py-4 bg-gray-800 text-gray-300 mt-auto">
-        <p className="text-sm">
-          © {new Date().getFullYear()} AI-Powered To-Do App |
-          <a
-            href="/documentation"
-            className="text-blue-400 hover:text-blue-500 ml-1"
-          >
-            Documentation
-          </a>
-        </p>
+      {/* Footer */}
+      <footer className="bg-white border-t mt-12 py-6">
+        <div className="container mx-auto px-4 text-center text-sm text-gray-500">
+          <p>© {new Date().getFullYear()} TaskMaster AI. All rights reserved.</p>
+        </div>
       </footer>
-
-      <ToastContainer position="bottom-right" />
     </div>
   );
-}
+};
 
-export default Tasks;
+export default TaskManager;
