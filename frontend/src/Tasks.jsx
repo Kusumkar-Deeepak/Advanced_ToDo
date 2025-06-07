@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { FiPlus, FiTrash2, FiEdit, FiCheck, FiLogOut, FiUser, FiList } from 'react-icons/fi';
 
-const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api/tasks/ai';
+const API_URL = import.meta.env.REACT_APP_API_URL || 'https://smarttasker-server.onrender.com/api/tasks/ai';
 
 const priorityColors = {
   high: 'bg-red-100 text-red-800',
